@@ -57,6 +57,19 @@ locals {
   }
 }
 
+# Safety guard: fail `terraform plan` early if the decoded export has 0
+# rules, unless the caller opts in via allow_empty_policy. Protects against
+# a truncated export, a renamed upstream JSON key, or an accidentally
+# wrong-tenant near-empty JSON file silently destroying the live policy.
+resource "terraform_data" "guard_empty_policy" {
+  lifecycle {
+    precondition {
+      condition     = var.allow_empty_policy || length(local.rules_by_name) > 0
+      error_message = "Policy JSON contains 0 rules. If intentional (greenfield/teardown), set allow_empty_policy = true. A truncated or wrong-tenant export would otherwise destroy the entire live policy."
+    }
+  }
+}
+
 # Optional account-level policy toggle (Terminal Server ships disabled on new
 # tenants - without enabling it, published rules have no effect).
 resource "cato_terminal_server_policy" "policy" {
